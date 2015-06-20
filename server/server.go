@@ -7,6 +7,9 @@ import (
     "encoding/json"
     "log"
 
+    // My stuff
+    "github.com/furio/widserve/cache"
+
     // "gopkg.in/redis.v3"
     "github.com/gorilla/mux"
 
@@ -25,6 +28,8 @@ var corsConfig = cors.New(cors.Options{
 })
 
 var statsMiddle = stats.New()
+
+var cacheIstance cache.CacheGeneric = nil
 
 /*
 var redisCli = redis.NewClient(&redis.Options{
@@ -63,6 +68,9 @@ func GetWidget(w http.ResponseWriter, req *http.Request) {
 }
 
 func Main() {
+    // cacheIstance = cache.GetCacheClient(cache.Local, nil)
+
+
     router := mux.NewRouter()
 
     // Admin stuff
