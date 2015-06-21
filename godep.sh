@@ -1,9 +1,15 @@
 #!/bin/bash
 PRJSRC=$(pwd)
-cd ../../../../
+cd $PRJSRC/../../../../
 PRJPATH=$(pwd)
-cd bin/
-GODEP=$(pwd)
+GODEP=$PRJPATH/bin
 cd $PRJSRC
+
+if ! [ -f "$GODEP/godep" ]; then
+  echo "Install godep."
+  echo "GOPATH=$PRJPATH go get github.com/tools/godep"
+  exit
+fi
+
 
 GOPATH=$PRJPATH $GODEP/godep $@
