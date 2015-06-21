@@ -23,6 +23,8 @@ import (
     // https://github.com/unrolled/secure
 )
 
+var _ = log.Prefix()
+
 var corsConfig = cors.New(cors.Options{
     AllowedMethods: []string{"GET","POST","OPTIONS"},
 })
@@ -31,13 +33,6 @@ var statsMiddle = stats.New()
 
 var cacheIstance cache.CacheGeneric = nil
 
-/*
-var redisCli = redis.NewClient(&redis.Options{
-    Addr:     "localhost:6379",
-    Password: "", // no password set
-    DB:       0,  // use default DB
-})
-*/
 
 func NewWidget(w http.ResponseWriter, req *http.Request) {
     fmt.Fprintf(w, "Welcome admin!")
@@ -53,24 +48,36 @@ func AdminStats(w http.ResponseWriter, req *http.Request) {
 }
 
 func GetWidget(w http.ResponseWriter, req *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+
+    // get vars
     vars := mux.Vars(req)
     val, key := vars["wkey"]
 
     if (key) {
         // Chack a validity
-        // grab from redis
+        data, found := cacheIstance.Get(val)
 
-        log.Println(val)
-        fmt.Fprintf(w, "Welcome widget!")
+        if (found) {
+            fmt.Fprintf(w, data.(string))
+        } else {
+            http.NotFound(w, req);
+        }
     } else {
         http.NotFound(w, req);
     }
 }
 
 func Main() {
-    // cacheIstance = cache.GetCacheClient(cache.Local, nil)
+    InitCache()
+    InitServer()
+}
 
+func InitCache() {
+    cacheIstance = cache.GetCacheClient(cache.Local, nil)
+}
 
+func InitServer() {
     router := mux.NewRouter()
 
     // Admin stuff

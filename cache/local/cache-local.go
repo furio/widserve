@@ -27,10 +27,12 @@ func (this LocalCache) Get(key string) (interface{},bool) {
 	return this.instance.Get(key);
 }
 
-func (this LocalCache) Set(key string, value interface{}, timeout time.Duration)  {
+func (this LocalCache) Set(key string, value interface{}, timeout time.Duration) bool {
 	this.instance.Set(key,value,timeout)
+	return true
 }
 
-func (this LocalCache) Delete(key string) {
+func (this LocalCache) Delete(key string) bool {
 	this.instance.Delete(key)
+	return true
 }
