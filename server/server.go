@@ -5,14 +5,15 @@ import (
     "fmt"
     "time"
     "encoding/json"
-    "log"
+    _ "log"
 
     // My stuff
     "github.com/furio/widserve/cache"
 
-    // "gopkg.in/redis.v3"
+    // Routing
     "github.com/gorilla/mux"
 
+    // Middleware
     "github.com/codegangsta/negroni"
     "github.com/phyber/negroni-gzip/gzip"
     "github.com/rs/cors"
@@ -22,8 +23,6 @@ import (
     // https://github.com/mholt/binding
     // https://github.com/unrolled/secure
 )
-
-var _ = log.Prefix()
 
 var corsConfig = cors.New(cors.Options{
     AllowedMethods: []string{"GET","POST","OPTIONS"},

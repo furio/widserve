@@ -1,0 +1,58 @@
+{
+	"ImportPath": "github.com/furio/widserve",
+	"GoVersion": "go1.4.2",
+	"Deps": [
+		{
+			"ImportPath": "github.com/codegangsta/negroni",
+			"Comment": "v0.1-70-gc7477ad",
+			"Rev": "c7477ad8e330bef55bf1ebe300cf8aa67c492d1b"
+		},
+		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "215affda49addc4c8ef7e2534915df2c8c35c6cd"
+		},
+		{
+			"ImportPath": "github.com/gorilla/mux",
+			"Rev": "47e8f450ef38c857cdd922ec08862ca9d65a1c6d"
+		},
+		{
+			"ImportPath": "github.com/phyber/negroni-gzip/gzip",
+			"Rev": "ff2754fcbd1ea465aadd7f74699aed5e483eda85"
+		},
+		{
+			"ImportPath": "github.com/pmylund/go-cache",
+			"Rev": "93d85800f2fa6bd0a739e7bd612bfa3bc008b72d"
+		},
+		{
+			"ImportPath": "github.com/rs/cors",
+			"Rev": "5e4ce6bc0ecd3472f6f943666d84876691be2ced"
+		},
+		{
+			"ImportPath": "github.com/thoas/stats",
+			"Rev": "54ed61c2b47e263ae2f01b86837b0c4bd1da28e8"
+		},
+		{
+			"ImportPath": "golang.org/x/net/netutil",
+			"Rev": "10576091dc82c9c109dddfb5ed77bdbbc87a9af8"
+		},
+		{
+			"ImportPath": "gopkg.in/bsm/ratelimit.v1",
+			"Rev": "bda20d5067a03094fc6762f7ead53027afac5f28"
+		},
+		{
+			"ImportPath": "gopkg.in/bufio.v1",
+			"Comment": "v1",
+			"Rev": "567b2bfa514e796916c4747494d6ff5132a1dfce"
+		},
+		{
+			"ImportPath": "gopkg.in/redis.v3",
+			"Comment": "v3.1.4",
+			"Rev": "d36559f9ce085e75cccdb58e9a54e36621bfd4c1"
+		},
+		{
+			"ImportPath": "gopkg.in/tylerb/graceful.v1",
+			"Comment": "v1.2.1",
+			"Rev": "ac9ebe4f1ee151ac1eeeaef32957085cba64d508"
+		}
+	]
+}
