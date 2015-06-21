@@ -9,13 +9,12 @@ import (
 
 type LocalCache struct {
 	instance *cache.Cache
+	init_ctx sync.Once
 }
-
-var init_ctx sync.Once
 
 
 func (this LocalCache) Init(config map[string]string) {
-	init_ctx.Do( func () {
+	this.init_ctx.Do( func () {
 			defaultExpiration, _ := strconv.ParseInt(config["defaultExpiration"], 10, 64)
 			purgeTime, _ := strconv.ParseInt(config["purgeTime"], 10, 64)
 

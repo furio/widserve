@@ -10,13 +10,12 @@ import (
 
 type RedisCache struct {
 	instance *redis.Client
+	init_ctx sync.Once
 }
-
-var init_ctx sync.Once
 
 
 func (this RedisCache) Init(config map[string]string) {
-	init_ctx.Do( func () {
+	this.init_ctx.Do( func () {
 		database, _ := strconv.ParseInt(config["database"], 10, 64)
 		poolSize, _ := strconv.ParseInt(config["poolSize"], 10, 64)
 

@@ -83,9 +83,9 @@ func InitServer() {
     adminRoutes := router.PathPrefix("/admin").Subrouter()
     adminRoutes.HandleFunc("/stats", AdminStats).Methods("GET")
 
-    adminRoutes.HandleFunc("/widget/new", NewWidget).Methods("POST")
+    adminRoutes.HandleFunc("/widgets", NewWidget).Methods("GET,POST")
     adminRoutes.HandleFunc("/widget/{key}", NewWidget).Methods("GET,DELETE")
-    adminRoutes.HandleFunc("/widget/{key}/refresh", NewWidget).Methods("GET")
+    adminRoutes.HandleFunc("/widget/{key}/force", NewWidget).Methods("POST")
 
 
     // Client stuff
