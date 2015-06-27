@@ -33,11 +33,11 @@ var statsMiddle = stats.New()
 var cacheIstance cache.CacheGeneric = nil
 
 
-func NewWidget(w http.ResponseWriter, req *http.Request) {
+func newWidget(w http.ResponseWriter, req *http.Request) {
     fmt.Fprintf(w, "Welcome admin!")
 }
 
-func AdminStats(w http.ResponseWriter, req *http.Request) {
+func adminStats(w http.ResponseWriter, req *http.Request) {
     w.Header().Set("Content-Type", "application/json")
 
     stats := statsMiddle.Data()
@@ -46,7 +46,7 @@ func AdminStats(w http.ResponseWriter, req *http.Request) {
     w.Write(b)
 }
 
-func GetWidget(w http.ResponseWriter, req *http.Request) {
+func getWidget(w http.ResponseWriter, req *http.Request) {
     w.Header().Set("Content-Type", "application/json")
 
     // get vars
@@ -68,29 +68,29 @@ func GetWidget(w http.ResponseWriter, req *http.Request) {
 }
 
 func Main() {
-    InitCache()
-    InitServer()
+    initCache()
+    initServer()
 }
 
-func InitCache() {
+func initCache() {
     cacheIstance = cache.GetCacheClient(cache.Local, nil)
 }
 
-func InitServer() {
+func initServer() {
     router := mux.NewRouter()
 
     // Admin stuff
     adminRoutes := router.PathPrefix("/admin").Subrouter()
-    adminRoutes.HandleFunc("/stats", AdminStats).Methods("GET")
+    adminRoutes.HandleFunc("/stats", adminStats).Methods("GET")
 
-    adminRoutes.HandleFunc("/widgets", NewWidget).Methods("GET,POST")
-    adminRoutes.HandleFunc("/widget/{key}", NewWidget).Methods("GET,DELETE")
-    adminRoutes.HandleFunc("/widget/{key}/force", NewWidget).Methods("POST")
+    adminRoutes.HandleFunc("/widgets", newWidget).Methods("GET,POST")
+    adminRoutes.HandleFunc("/widget/{key}", newWidget).Methods("GET,DELETE")
+    adminRoutes.HandleFunc("/widget/{key}/force", newWidget).Methods("POST")
 
 
     // Client stuff
     clientRoutes := router.PathPrefix("/widgets").Subrouter()
-    clientRoutes.HandleFunc("/{wkey}", GetWidget).Methods("GET")
+    clientRoutes.HandleFunc("/{wkey}", getWidget).Methods("GET")
 
     // Make the server
     n := negroni.New()

@@ -1,125 +1,99 @@
 package db
 
 import(
-
+    "log"
+    "os"
+    _ "sync"
+    "database/sql"
 	_ "github.com/furio/widserve/db/uid"
 
-	_ "gopkg.in/gorp.v1"
-	_ "github.com/mattn/go-sqlite3"
-	_ "github.com/go-sql-driver/mysql"
+	"gopkg.in/gorp.v1"
+	"github.com/mattn/go-sqlite3"
+	"github.com/go-sql-driver/mysql"
 )
 
-/*
+// Force godeps
+var _ = mysql.ErrBusyBuffer
+var _ = sqlite3.SQLiteConn{}
 
-func main() {
-    // initialize the DbMap
-    dbmap := initDb()
-    defer dbmap.Db.Close()
 
-    // delete any existing rows
-    err := dbmap.TruncateTables()
-    checkErr(err, "TruncateTables failed")
+type DataSource struct {
+    orm *gorp.DbMap
+}
 
-    // create two posts
-    p1 := newPost("Go 1.1 released!", "Lorem ipsum lorem ipsum")
-    p2 := newPost("Go 1.2 released!", "Lorem ipsum lorem ipsum")
+type DbType int
+const (
+    Local DbType = iota
+    MySQL
+)
 
-    // insert rows - auto increment PKs will be set properly after the insert
-    err = dbmap.Insert(&p1, &p2)
-    checkErr(err, "Insert failed")
+const tableName string = "widgets"
 
-    // use convenience SelectInt
-    count, err := dbmap.SelectInt("select count(*) from posts")
-    checkErr(err, "select count(*) failed")
-    log.Println("Rows after inserting:", count)
+func GetDataSource(dbType DbType, config map[string]string) DataSource {
+    outDb := DataSource{}
 
-    // update a row
-    p2.Title = "Go 1.2 is better than ever"
-    count, err = dbmap.Update(&p2)
-    checkErr(err, "Update failed")
-    log.Println("Rows updated:", count)
+    if (dbType == Local) {
+        db, err := sql.Open("sqlite3", "/tmp/post_db.bin") // config["dbSource"]
+        if (err != nil) {
+            return nil
+        }
 
-    // fetch one row - note use of "post_id" instead of "Id" since column is aliased
-    //
-    // Postgres users should use $1 instead of ? placeholders
-    // See 'Known Issues' below
-    //
-    err = dbmap.SelectOne(&p2, "select * from posts where post_id=?", p2.Id)
-    checkErr(err, "SelectOne failed")
-    log.Println("p2 row:", p2)
 
-    // fetch all rows
-    var posts []Post
-    _, err = dbmap.Select(&posts, "select * from posts order by post_id")
-    checkErr(err, "Select failed")
-    log.Println("All rows:")
-    for x, p := range posts {
-        log.Printf("    %d: %v\n", x, p)
+        outDb.orm = &gorp.DbMap{Db: db, Dialect: gorp.SqliteDialect{}}
+    } else if (dbType == MySQL) {
+        db, err := sql.Open("mysql", "user:password@/dbname") // config["dbSource"]
+        if (err != nil) {
+            return nil
+        }
+
+        outDb.orm = &gorp.DbMap{Db: db, Dialect: gorp.MySQLDialect{"InnoDB", "UTF8"}}
     }
 
-    // delete row by PK
-    count, err = dbmap.Delete(&p1)
-    checkErr(err, "Delete failed")
-    log.Println("Rows deleted:", count)
+    // Bind table
+    outDb.orm.AddTableWithName(Widget{}, tableName).SetKeys(false, "WidgetId")
 
-    // delete row manually via Exec
-    _, err = dbmap.Exec("delete from posts where post_id=?", p2.Id)
-    checkErr(err, "Exec failed")
+    // create DB
+    createDb(outDb, dbType)
 
-    // confirm count is zero
-    count, err = dbmap.SelectInt("select count(*) from posts")
-    checkErr(err, "select count(*) failed")
-    log.Println("Row count - should be zero:", count)
+    // If from config
+    outDb.orm.TraceOn("[gorp]", log.New(os.Stdout, "db:", log.Lmicroseconds))
 
-    log.Println("Done!")
+    return outDb
 }
 
-type Post struct {
-    // db tag lets you specify the column name if it differs from the struct field
-    Id      int64  `db:"post_id"`
-    Created int64
-    Title   string `db:",size:50"`               // Column size set to 50
-    Body    string `db:"article_body,size:1024"` // Set both column name and size
-}
+func createDb(dbSource DataSource, dbType DbType) bool {
+    err := dbSource.orm.CreateTablesIfNotExists()
 
-func newPost(title, body string) Post {
-    return Post{
-        Created: time.Now().UnixNano(),
-        Title:   title,
-        Body:    body,
+    if (err == nil) {
+        if (dbType == Local) {
+            dbSource.orm.Exec("CREATE INDEX IF NOT EXIST nextcheckindex ON " + tableName + "(next_cache_check)")
+            dbSource.orm.Exec("CREATE INDEX IF NOT EXIST cachedurationindex ON " + tableName + "(cache_elapse)")
+            dbSource.orm.Exec("CREATE INDEX IF NOT EXIST apikeyindex ON " + tableName + "(api_key)")
+        } else if (dbType == MySQL) {
+            mySqlIndex := "SELECT COUNT(1) IndexIsThere FROM INFORMATION_SCHEMA.STATISTICS WHERE table_schema=DATABASE() AND table_name=? AND index_name=?"
+
+            i64, err := dbSource.orm.SelectInt(mySqlIndex, tableName, "nextcheckindex")
+            if (err == nil && i64 == 1) {
+                dbSource.orm.Exec("CREATE INDEX nextcheckindex ON " + tableName + "(next_cache_check)")
+            }
+
+            i64, err = dbSource.orm.SelectInt(mySqlIndex, tableName, "cachedurationindex")
+            if (err == nil && i64 == 1) {
+                dbSource.orm.Exec("CREATE INDEX cachedurationindex ON " + tableName + "(cache_elapse)")
+            }
+
+            i64, err = dbSource.orm.SelectInt(mySqlIndex, tableName, "apikeyindex")
+            if (err == nil && i64 == 1) {
+                dbSource.orm.Exec("CREATE INDEX apikeyindex ON " + tableName + "(api_key)")
+            }
+        }
     }
+
+    return err == nil
 }
 
-func initDb() *gorp.DbMap {
-    // connect to db using standard Go database/sql API
-    // use whatever database/sql driver you wish
-    db, err := sql.Open("sqlite3", "/tmp/post_db.bin")
-    checkErr(err, "sql.Open failed")
+func (this DataSource) GetWidget(id string) Widget {
+    p1, _ := this.orm.Get(Widget{}, id)
 
-    // construct a gorp DbMap
-    dbmap := &gorp.DbMap{Db: db, Dialect: gorp.SqliteDialect{}}
-
-    // add a table, setting the table name to 'posts' and
-    // specifying that the Id property is an auto incrementing PK
-    dbmap.AddTableWithName(Post{}, "posts").SetKeys(true, "Id")
-
-    // create the table. in a production system you'd generally
-    // use a migration tool, or create the tables via scripts
-    err = dbmap.CreateTablesIfNotExists()
-    checkErr(err, "Create tables failed")
-
-    return dbmap
+    return p1
 }
-
-func checkErr(err error, msg string) {
-    if err != nil {
-        log.Fatalln(msg, err)
-    }
-}
-
-
-
-
-
-
- */
