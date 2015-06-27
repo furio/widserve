@@ -52,7 +52,7 @@ func GetDataSource(dbType DbType, config map[string]string) DataSource {
     }
 
     // Bind table
-    outDb.orm.AddTableWithName(Widget{}, tableName).SetKeys(false, "WidgetID")
+    mapTable(outDb)
 
     // create DB
     createDb(outDb, dbType)
@@ -68,9 +68,9 @@ func mapTable(dbSource DatabaseSource) {
 
     table := dbSource.orm.AddTableWithName(Widget{}, tableName)
     table.SetKeys(false, "WidgetID")
-    table.ColMap("WidgetID").SetNotNull(false).SetMaxSize(255)
-    table.ColMap("ApiKey").SetNotNull(false).SetMaxSize(255)
-    table.ColMap("ApiPath").SetNotNull(false).SetMaxSize(1024)
+    table.ColMap("WidgetID").SetNotNull(true).SetMaxSize(255)
+    table.ColMap("ApiKey").SetNotNull(true).SetMaxSize(255)
+    table.ColMap("ApiPath").SetNotNull(true).SetMaxSize(1024)
     table.ColMap("Created")
     table.ColMap("CacheElapse")
     table.ColMap("NextCheck")
@@ -81,31 +81,25 @@ func createDb(dbSource DatabaseSource, dbType DbType) bool {
 
     if (err == nil) {
         if (dbType == Local) {
-            res,err := dbSource.orm.Db.Exec("CREATE INDEX IF NOT EXISTS nextcheckindex ON " + tableName + "(NextCheck)")
-            log.Println(res)
-            log.Println(err)
-            res,err = dbSource.orm.Db.Exec("CREATE INDEX IF NOT EXISTS cachedurationindex ON " + tableName + "(CacheElapse)")
-            log.Println(res)
-            log.Println(err)
-            res,err = dbSource.orm.Db.Exec("CREATE INDEX IF NOT EXISTS apikeyindex ON " + tableName + "(ApiKey)")
-            log.Println(res)
-            log.Println(err)
+            dbSource.orm.Db.Exec("CREATE INDEX IF NOT EXISTS nextcheckindex ON " + tableName + "(NextCheck)")
+            dbSource.orm.Db.Exec("CREATE INDEX IF NOT EXISTS cachedurationindex ON " + tableName + "(CacheElapse)")
+            dbSource.orm.Db.Exec("CREATE INDEX IF NOT EXISTS apikeyindex ON " + tableName + "(ApiKey)")
         } else if (dbType == MySQL) {
             mySqlIndex := "SELECT COUNT(1) IndexIsThere FROM INFORMATION_SCHEMA.STATISTICS WHERE table_schema=DATABASE() AND table_name=? AND index_name=?"
 
             i64, err := dbSource.orm.SelectInt(mySqlIndex, tableName, "nextcheckindex")
             if (err == nil && i64 == 1) {
-                dbSource.orm.Exec("CREATE INDEX nextcheckindex ON " + tableName + "(NextCheck)")
+                dbSource.orm.Db.Exec("CREATE INDEX nextcheckindex ON " + tableName + "(NextCheck)")
             }
 
             i64, err = dbSource.orm.SelectInt(mySqlIndex, tableName, "cachedurationindex")
             if (err == nil && i64 == 1) {
-                dbSource.orm.Exec("CREATE INDEX cachedurationindex ON " + tableName + "(CacheElapse)")
+                dbSource.orm.Db.Exec("CREATE INDEX cachedurationindex ON " + tableName + "(CacheElapse)")
             }
 
             i64, err = dbSource.orm.SelectInt(mySqlIndex, tableName, "apikeyindex")
             if (err == nil && i64 == 1) {
-                dbSource.orm.Exec("CREATE INDEX apikeyindex ON " + tableName + "(ApiKey)")
+                dbSource.orm.Db.Exec("CREATE INDEX apikeyindex ON " + tableName + "(ApiKey)")
             }
         }
     }
