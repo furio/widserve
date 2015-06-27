@@ -8,18 +8,20 @@ import (
 	"os"
 	"sync"
 	"time"
+	"strconv"
 )
 
 const epochStart = 122192928000000000
-const salt = []byte("thecatjumpingdownthebedshedsomefur")
+const saltStr = "thecatjumpingdownthebedshedsomefur"
 
 var (
 	initOnce   	  sync.Once
-	epochFunc     = func() int64 { return epochStart + uint64(time.Now().UnixNano()/100) }
+	epochFunc     = func() uint64 { return epochStart + uint64(time.Now().UnixNano()/100) }
 	hardwareAddr  [6]byte
-	posixUID      = uint32(os.Getuid())
-	posixGID      = uint32(os.Getgid())
+	posixUID      = os.Getuid()
+	posixGID      = os.Getgid()
 	shaGen		  = sha256.New()
+	salt 		  = []byte(saltStr)
 )
 
 func safeRandom(dest []byte) {
@@ -49,7 +51,12 @@ func NewUid(name string) string {
 		initHardwareAddr()
 	})
 
-	u := shaGen.Sum(append(salt, []byte(posixUID), []byte(posixGID), hardwareAddr, []byte(epochFunc()), []byte(name)))
+	pId := []byte(strconv.Itoa(posixUID))
+	gId := []byte(strconv.Itoa(posixGID))
+	time := []byte(strconv.FormatUint(epochFunc(), 10))
+
+	hashing := append( append( append( append( append( salt, pId... ), gId... ), hardwareAddr[:]... ), time... ), []byte(name)... )
+	u := shaGen.Sum(hashing)
 
 	return hex.EncodeToString(u)
 }

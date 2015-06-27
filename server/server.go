@@ -8,6 +8,7 @@ import (
     _ "log"
 
     // My stuff
+    "github.com/furio/widserve/db"
     "github.com/furio/widserve/cache"
 
     // Routing
@@ -31,6 +32,7 @@ var corsConfig = cors.New(cors.Options{
 var statsMiddle = stats.New()
 
 var cacheIstance cache.CacheGeneric = nil
+var dbIstance db.DataSource = nil
 
 
 func newWidget(w http.ResponseWriter, req *http.Request) {
@@ -68,12 +70,17 @@ func getWidget(w http.ResponseWriter, req *http.Request) {
 }
 
 func Main() {
+    initDb()
     initCache()
     initServer()
 }
 
 func initCache() {
     cacheIstance = cache.GetCacheClient(cache.Local, nil)
+}
+
+func initDb() {
+    dbIstance = db.GetDataSource(db.Local, nil)
 }
 
 func initServer() {

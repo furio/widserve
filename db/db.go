@@ -16,8 +16,11 @@ import(
 var _ = mysql.ErrBusyBuffer
 var _ = sqlite3.SQLiteConn{}
 
+type DataSource interface {
+    GetWidget(id string) Widget;
+}
 
-type DataSource struct {
+type DatabaseSource struct {
     orm *gorp.DbMap
 }
 
@@ -30,14 +33,13 @@ const (
 const tableName string = "widgets"
 
 func GetDataSource(dbType DbType, config map[string]string) DataSource {
-    outDb := DataSource{}
+    outDb := DatabaseSource{}
 
     if (dbType == Local) {
-        db, err := sql.Open("sqlite3", "/tmp/post_db.bin") // config["dbSource"]
+        db, err := sql.Open("sqlite3", "/tmp/widget_db.bin") // config["dbSource"]
         if (err != nil) {
             return nil
         }
-
 
         outDb.orm = &gorp.DbMap{Db: db, Dialect: gorp.SqliteDialect{}}
     } else if (dbType == MySQL) {
@@ -50,7 +52,7 @@ func GetDataSource(dbType DbType, config map[string]string) DataSource {
     }
 
     // Bind table
-    outDb.orm.AddTableWithName(Widget{}, tableName).SetKeys(false, "WidgetId")
+    outDb.orm.AddTableWithName(Widget{}, tableName).SetKeys(false, "WidgetID")
 
     // create DB
     createDb(outDb, dbType)
@@ -61,30 +63,49 @@ func GetDataSource(dbType DbType, config map[string]string) DataSource {
     return outDb
 }
 
-func createDb(dbSource DataSource, dbType DbType) bool {
+func mapTable(dbSource DatabaseSource) {
+    // Had issue with inline mapping
+
+    table := dbSource.orm.AddTableWithName(Widget{}, tableName)
+    table.SetKeys(false, "WidgetID")
+    table.ColMap("WidgetID").SetNotNull(false).SetMaxSize(255)
+    table.ColMap("ApiKey").SetNotNull(false).SetMaxSize(255)
+    table.ColMap("ApiPath").SetNotNull(false).SetMaxSize(1024)
+    table.ColMap("Created")
+    table.ColMap("CacheElapse")
+    table.ColMap("NextCheck")
+}
+
+func createDb(dbSource DatabaseSource, dbType DbType) bool {
     err := dbSource.orm.CreateTablesIfNotExists()
 
     if (err == nil) {
         if (dbType == Local) {
-            dbSource.orm.Exec("CREATE INDEX IF NOT EXIST nextcheckindex ON " + tableName + "(next_cache_check)")
-            dbSource.orm.Exec("CREATE INDEX IF NOT EXIST cachedurationindex ON " + tableName + "(cache_elapse)")
-            dbSource.orm.Exec("CREATE INDEX IF NOT EXIST apikeyindex ON " + tableName + "(api_key)")
+            res,err := dbSource.orm.Db.Exec("CREATE INDEX IF NOT EXISTS nextcheckindex ON " + tableName + "(NextCheck)")
+            log.Println(res)
+            log.Println(err)
+            res,err = dbSource.orm.Db.Exec("CREATE INDEX IF NOT EXISTS cachedurationindex ON " + tableName + "(CacheElapse)")
+            log.Println(res)
+            log.Println(err)
+            res,err = dbSource.orm.Db.Exec("CREATE INDEX IF NOT EXISTS apikeyindex ON " + tableName + "(ApiKey)")
+            log.Println(res)
+            log.Println(err)
         } else if (dbType == MySQL) {
             mySqlIndex := "SELECT COUNT(1) IndexIsThere FROM INFORMATION_SCHEMA.STATISTICS WHERE table_schema=DATABASE() AND table_name=? AND index_name=?"
 
             i64, err := dbSource.orm.SelectInt(mySqlIndex, tableName, "nextcheckindex")
             if (err == nil && i64 == 1) {
-                dbSource.orm.Exec("CREATE INDEX nextcheckindex ON " + tableName + "(next_cache_check)")
+                dbSource.orm.Exec("CREATE INDEX nextcheckindex ON " + tableName + "(NextCheck)")
             }
 
             i64, err = dbSource.orm.SelectInt(mySqlIndex, tableName, "cachedurationindex")
             if (err == nil && i64 == 1) {
-                dbSource.orm.Exec("CREATE INDEX cachedurationindex ON " + tableName + "(cache_elapse)")
+                dbSource.orm.Exec("CREATE INDEX cachedurationindex ON " + tableName + "(CacheElapse)")
             }
 
             i64, err = dbSource.orm.SelectInt(mySqlIndex, tableName, "apikeyindex")
             if (err == nil && i64 == 1) {
-                dbSource.orm.Exec("CREATE INDEX apikeyindex ON " + tableName + "(api_key)")
+                dbSource.orm.Exec("CREATE INDEX apikeyindex ON " + tableName + "(ApiKey)")
             }
         }
     }
@@ -92,8 +113,8 @@ func createDb(dbSource DataSource, dbType DbType) bool {
     return err == nil
 }
 
-func (this DataSource) GetWidget(id string) Widget {
+func (this DatabaseSource) GetWidget(id string) Widget {
     p1, _ := this.orm.Get(Widget{}, id)
 
-    return p1
+    return p1.(Widget)
 }
