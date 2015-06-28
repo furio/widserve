@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -13,8 +14,13 @@ type Widget struct {
 	NextCheck	uint64	// `db:"next_cache_check"`
 }
 
-func NewWidget(uid string, apiKey string, apiPath string, cacheElapse uint32) Widget {
-	now := uint64( time.Now().UnixNano() )
+func (this Widget) String() string{
+	return fmt.Sprintf("{Widget Id:%s, ApiKey:%s, ApiPath:%s, Created:%d, CacheElapse:%d, NextCheck:%d}",
+		this.WidgetID, this.ApiKey, this.ApiPath, this.Created, this.CacheElapse, this.NextCheck)
+}
+
+func newWidget(uid string, apiKey string, apiPath string, cacheElapse uint32) Widget {
+	now := uint64( time.Now().Unix() )
 
 	return Widget{
 		WidgetID: uid,

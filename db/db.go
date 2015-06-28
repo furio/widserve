@@ -5,7 +5,7 @@ import(
     "os"
     _ "sync"
     "database/sql"
-	_ "github.com/furio/widserve/db/uid"
+	"github.com/furio/widserve/db/uid"
 
 	"gopkg.in/gorp.v1"
 	"github.com/mattn/go-sqlite3"
@@ -17,7 +17,9 @@ var _ = mysql.ErrBusyBuffer
 var _ = sqlite3.SQLiteConn{}
 
 type DataSource interface {
-    GetWidget(id string) Widget;
+    GetWidget(id string) (Widget,error)
+	NewWidget(apiKey string, apiPath string, cacheElapse uint32) (Widget,error)
+	DeleteWidget(wObj Widget) (bool,error)
 }
 
 type DatabaseSource struct {
@@ -36,7 +38,7 @@ func GetDataSource(dbType DbType, config map[string]string) DataSource {
     outDb := DatabaseSource{}
 
     if (dbType == Local) {
-        db, err := sql.Open("sqlite3", "/tmp/widget_db.bin") // config["dbSource"]
+        db, err := sql.Open("sqlite3", "/home/furio/tmp/widget_db.bin") // config["dbSource"]
         if (err != nil) {
             return nil
         }
@@ -61,6 +63,27 @@ func GetDataSource(dbType DbType, config map[string]string) DataSource {
     outDb.orm.TraceOn("[gorp]", log.New(os.Stdout, "db:", log.Lmicroseconds))
 
     return outDb
+}
+
+func (this DatabaseSource) GetWidget(id string) (Widget,error) {
+    p1, err := this.orm.Get(Widget{}, id)
+
+    return *(p1.(*Widget)), err
+}
+
+func (this DatabaseSource) NewWidget(apiKey string, apiPath string, cacheElapse uint32) (Widget,error) {
+	p1 := newWidget(uid.NewUid(apiKey + apiPath), apiKey, apiPath, cacheElapse)
+	// _ = "breakpoint"
+	err := this.orm.Insert(&p1)
+	// _ = "breakpoint"
+
+	return p1, err
+}
+
+func (this DatabaseSource) DeleteWidget(wObj Widget) (bool,error) {
+	p1,err := this.orm.Delete(wObj)
+
+	return p1==1, err
 }
 
 func mapTable(dbSource DatabaseSource) {
@@ -105,10 +128,4 @@ func createDb(dbSource DatabaseSource, dbType DbType) bool {
     }
 
     return err == nil
-}
-
-func (this DatabaseSource) GetWidget(id string) Widget {
-    p1, _ := this.orm.Get(Widget{}, id)
-
-    return p1.(Widget)
 }

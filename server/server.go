@@ -5,7 +5,7 @@ import (
     "fmt"
     "time"
     "encoding/json"
-    _ "log"
+    "log"
 
     // My stuff
     "github.com/furio/widserve/db"
@@ -20,23 +20,53 @@ import (
     "github.com/rs/cors"
     "gopkg.in/tylerb/graceful.v1"
     "github.com/thoas/stats"
+	"github.com/mholt/binding"
 
-    // https://github.com/mholt/binding
     // https://github.com/unrolled/secure
+	// https://github.com/martini-contrib/throttle
 )
 
-var corsConfig = cors.New(cors.Options{
-    AllowedMethods: []string{"GET","POST","OPTIONS"},
-})
+var _ = log.Flags()
 
+// Midleware
+var corsConfig = cors.New(cors.Options{
+    AllowedMethods: []string{"GET","POST","DELETE","OPTIONS"},
+})
 var statsMiddle = stats.New()
 
+
+// Cache & Db
 var cacheIstance cache.CacheGeneric = nil
 var dbIstance db.DataSource = nil
 
+/* ===================================================================== */
+/* ===================================================================== */
+/* ===================================================================== */
+/* ===================================================================== */
 
-func newWidget(w http.ResponseWriter, req *http.Request) {
-    fmt.Fprintf(w, "Welcome admin!")
+type WidgetForm struct {
+	WidgetID	string
+	ApiKey		string
+	ApiPath		string
+	CacheElapse	uint32
+}
+
+func (cf *WidgetForm) FieldMap() binding.FieldMap {
+	return binding.FieldMap{
+		&cf.WidgetID: "WidgetID",
+		&cf.ApiKey:  binding.Field{
+			Form:     "ApiKey",
+			Required: true,
+		},
+		&cf.ApiPath:  binding.Field{
+			Form:     "ApiPath",
+			Required: true,
+		},
+		&cf.CacheElapse: binding.Field{
+			Form:     "CacheElapse",
+			Required: true,
+		},
+	}
 }
 
 func adminStats(w http.ResponseWriter, req *http.Request) {
@@ -49,6 +79,48 @@ func adminStats(w http.ResponseWriter, req *http.Request) {
 }
 
 func getWidget(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// get vars
+	vars := mux.Vars(req)
+	val, key := vars["wkey"]
+
+	if (key) {
+		widget, err := dbIstance.GetWidget(val)
+
+		if (err == nil) {
+			b, _ := json.Marshal(widget)
+
+			w.Write(b)
+		} else {
+			http.NotFound(w, req);
+		}
+	} else {
+		http.NotFound(w, req);
+	}
+}
+
+func createWidget(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	wForm := new(WidgetForm)
+	errs := binding.Bind(req, wForm)
+
+	if errs.Handle(w) {
+		return
+	}
+
+	wData, err := dbIstance.NewWidget(wForm.ApiKey, wForm.ApiPath, wForm.CacheElapse)
+
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+	} else {
+		b, _ := json.Marshal(wData)
+		w.Write(b)
+	}
+}
+
+func getCachedWidget(w http.ResponseWriter, req *http.Request) {
     w.Header().Set("Content-Type", "application/json")
 
     // get vars
@@ -56,7 +128,6 @@ func getWidget(w http.ResponseWriter, req *http.Request) {
     val, key := vars["wkey"]
 
     if (key) {
-        // Chack a validity
         data, found := cacheIstance.Get(val)
 
         if (found) {
@@ -69,11 +140,10 @@ func getWidget(w http.ResponseWriter, req *http.Request) {
     }
 }
 
-func Main() {
-    initDb()
-    initCache()
-    initServer()
-}
+/* ===================================================================== */
+/* ===================================================================== */
+/* ===================================================================== */
+/* ===================================================================== */
 
 func initCache() {
     cacheIstance = cache.GetCacheClient(cache.Local, nil)
@@ -90,14 +160,16 @@ func initServer() {
     adminRoutes := router.PathPrefix("/admin").Subrouter()
     adminRoutes.HandleFunc("/stats", adminStats).Methods("GET")
 
-    adminRoutes.HandleFunc("/widgets", newWidget).Methods("GET,POST")
-    adminRoutes.HandleFunc("/widget/{key}", newWidget).Methods("GET,DELETE")
-    adminRoutes.HandleFunc("/widget/{key}/force", newWidget).Methods("POST")
+//  adminRoutes.HandleFunc("/widgets", listWidgets).Methods("GET")
+	adminRoutes.HandleFunc("/widgets", createWidget).Methods("POST")
+    adminRoutes.HandleFunc("/widget/{wkey}", getWidget).Methods("GET")
+//	adminRoutes.HandleFunc("/widget/{wkey}", deleteWidget).Methods("DELETE")
+//  adminRoutes.HandleFunc("/widget/{wkey}/force", newWidget).Methods("POST")
 
 
     // Client stuff
     clientRoutes := router.PathPrefix("/widgets").Subrouter()
-    clientRoutes.HandleFunc("/{wkey}", getWidget).Methods("GET")
+    clientRoutes.HandleFunc("/{wkey}", getCachedWidget).Methods("GET")
 
     // Make the server
     n := negroni.New()
@@ -107,4 +179,10 @@ func initServer() {
     n.UseHandler(router)
 
     graceful.Run(":3000", 10*time.Second, n)
+}
+
+func Main() {
+	initDb()
+	initCache()
+	initServer()
 }
