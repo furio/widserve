@@ -20,6 +20,7 @@ type DataSource interface {
     GetWidget(id string) (Widget,error)
 	NewWidget(apiKey string, apiPath string, cacheElapse uint32) (Widget,error)
 	DeleteWidget(wObj Widget) (bool,error)
+	DeleteWidgetByKey(id string) (bool,error)
 }
 
 type DatabaseSource struct {
@@ -78,6 +79,16 @@ func (this DatabaseSource) NewWidget(apiKey string, apiPath string, cacheElapse 
 	// _ = "breakpoint"
 
 	return p1, err
+}
+
+func (this DatabaseSource) DeleteWidgetByKey(id string) (bool,error) {
+	p1, err:= this.GetWidget(id)
+
+	if err != nil {
+		return false,err
+	}
+
+	return this.DeleteWidget(p1)
 }
 
 func (this DatabaseSource) DeleteWidget(wObj Widget) (bool,error) {

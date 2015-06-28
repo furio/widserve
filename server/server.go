@@ -120,6 +120,23 @@ func createWidget(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func deleteWidget(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// get vars
+	vars := mux.Vars(req)
+	val, key := vars["wkey"]
+
+	if (key) {
+		res, _ := dbIstance.DeleteWidgetByKey(val)
+		b, _ := json.Marshal(map[string]bool {"result": res})
+
+		w.Write(b)
+	} else {
+		http.NotFound(w, req);
+	}
+}
+
 func getCachedWidget(w http.ResponseWriter, req *http.Request) {
     w.Header().Set("Content-Type", "application/json")
 
@@ -162,9 +179,9 @@ func initServer() {
 
 //  adminRoutes.HandleFunc("/widgets", listWidgets).Methods("GET")
 	adminRoutes.HandleFunc("/widgets", createWidget).Methods("POST")
-    adminRoutes.HandleFunc("/widget/{wkey}", getWidget).Methods("GET")
-//	adminRoutes.HandleFunc("/widget/{wkey}", deleteWidget).Methods("DELETE")
-//  adminRoutes.HandleFunc("/widget/{wkey}/force", newWidget).Methods("POST")
+    adminRoutes.HandleFunc("/widgets/{wkey}", getWidget).Methods("GET")
+	adminRoutes.HandleFunc("/widgets/{wkey}", deleteWidget).Methods("DELETE")
+//  adminRoutes.HandleFunc("/widgets/{wkey}/force", newWidget).Methods("POST")
 
 
     // Client stuff
