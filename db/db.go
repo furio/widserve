@@ -3,6 +3,7 @@ package db
 import(
     "log"
     "os"
+    "time"
     _ "sync"
     "database/sql"
 	"github.com/furio/widserve/db/uid"
@@ -18,7 +19,9 @@ var _ = sqlite3.SQLiteConn{}
 
 type DataSource interface {
     GetWidget(id string) (Widget,error)
-	NewWidget(apiKey string, apiPath string, cacheElapse uint32) (Widget,error)
+	NewWidget(apiHeader string, apiKey string, apiPath string, cacheElapse uint32) (Widget,error)
+    UpdateWidget(wObj Widget) (bool,error)
+    UpdateNextCheckWidget(wObj Widget) (bool,error)
 	DeleteWidget(wObj Widget) (bool,error)
 	DeleteWidgetByKey(id string) (bool,error)
 }
@@ -72,14 +75,27 @@ func (this DatabaseSource) GetWidget(id string) (Widget,error) {
     return *(p1.(*Widget)), err
 }
 
-func (this DatabaseSource) NewWidget(apiKey string, apiPath string, cacheElapse uint32) (Widget,error) {
-	p1 := newWidget(uid.NewUid(apiKey + apiPath), apiKey, apiPath, cacheElapse)
+func (this DatabaseSource) NewWidget(apiHeader string, apiKey string, apiPath string, cacheElapse uint32) (Widget,error) {
+	p1 := newWidget(apiHeader, uid.NewUid(apiHeader + apiKey + apiPath), apiKey, apiPath, cacheElapse)
 	// _ = "breakpoint"
 	err := this.orm.Insert(&p1)
 	// _ = "breakpoint"
 
 	return p1, err
 }
+
+func (this DatabaseSource) UpdateWidget(wObj Widget) (bool,error) {
+    p1,err := this.orm.Update(wObj)
+
+    return p1==1, err
+}
+func (this DatabaseSource) UpdateNextCheckWidget(wObj Widget) (bool,error) {
+    wObj.NextCheck = uint64( time.Now().Unix() ) + uint64( wObj.CacheElapse )
+    p1,err := this.orm.Update(wObj)
+
+    return p1==1, err
+}
+
 
 func (this DatabaseSource) DeleteWidgetByKey(id string) (bool,error) {
 	p1, err:= this.GetWidget(id)
@@ -103,6 +119,7 @@ func mapTable(dbSource DatabaseSource) {
     table := dbSource.orm.AddTableWithName(Widget{}, tableName)
     table.SetKeys(false, "WidgetID")
     table.ColMap("WidgetID").SetNotNull(true).SetMaxSize(255)
+    table.ColMap("ApiHeader").SetNotNull(true).SetMaxSize(255)
     table.ColMap("ApiKey").SetNotNull(true).SetMaxSize(255)
     table.ColMap("ApiPath").SetNotNull(true).SetMaxSize(1024)
     table.ColMap("Created")

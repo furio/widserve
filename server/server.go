@@ -46,6 +46,7 @@ var dbIstance db.DataSource = nil
 
 type WidgetForm struct {
 	WidgetID	string
+	ApiHeader	string
 	ApiKey		string
 	ApiPath		string
 	CacheElapse	uint32
@@ -54,6 +55,10 @@ type WidgetForm struct {
 func (cf *WidgetForm) FieldMap() binding.FieldMap {
 	return binding.FieldMap{
 		&cf.WidgetID: "WidgetID",
+		&cf.ApiHeader:  binding.Field{
+			Form:     "ApiHeader",
+			Required: true,
+		},
 		&cf.ApiKey:  binding.Field{
 			Form:     "ApiKey",
 			Required: true,
@@ -110,7 +115,7 @@ func createWidget(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	wData, err := dbIstance.NewWidget(wForm.ApiKey, wForm.ApiPath, wForm.CacheElapse)
+	wData, err := dbIstance.NewWidget(wForm.ApiHeader, wForm.ApiKey, wForm.ApiPath, wForm.CacheElapse)
 
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)

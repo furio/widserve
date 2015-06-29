@@ -29,6 +29,11 @@
 			"Rev": "6c082304f300fc70793cb0be18af0fdd4acd2b75"
 		},
 		{
+			"ImportPath": "github.com/parnurzeal/gorequest",
+			"Comment": "v0.2.4",
+			"Rev": "30f504965773bcd6855e423fabea0fc75cdfefef"
+		},
+		{
 			"ImportPath": "github.com/phyber/negroni-gzip/gzip",
 			"Rev": "ff2754fcbd1ea465aadd7f74699aed5e483eda85"
 		},
@@ -46,6 +51,10 @@
 		},
 		{
 			"ImportPath": "golang.org/x/net/netutil",
+			"Rev": "10576091dc82c9c109dddfb5ed77bdbbc87a9af8"
+		},
+		{
+			"ImportPath": "golang.org/x/net/publicsuffix",
 			"Rev": "10576091dc82c9c109dddfb5ed77bdbbc87a9af8"
 		},
 		{
