@@ -4,7 +4,7 @@ import(
     "log"
     "os"
     "time"
-    _ "sync"
+    "sync"
     "database/sql"
 	"github.com/furio/widserve/db/uid"
 
@@ -16,14 +16,17 @@ import(
 // Force godeps
 var _ = mysql.ErrBusyBuffer
 var _ = sqlite3.SQLiteConn{}
+var tableMutex sync.Mutex
 
 type DataSource interface {
     GetWidget(id string) (Widget,error)
+	GetWidgets(expireTime uint64, from int, qty int) ([]Widget,error)
 	NewWidget(apiHeader string, apiKey string, apiPath string, cacheElapse uint32) (Widget,error)
     UpdateWidget(wObj Widget) (bool,error)
     UpdateNextCheckWidget(wObj Widget) (bool,error)
 	DeleteWidget(wObj Widget) (bool,error)
 	DeleteWidgetByKey(id string) (bool,error)
+	ExpiredWidgetCount(expireTime uint64) (int64,error)
 }
 
 type DatabaseSource struct {
@@ -75,6 +78,15 @@ func (this DatabaseSource) GetWidget(id string) (Widget,error) {
     return *(p1.(*Widget)), err
 }
 
+func (this DatabaseSource) GetWidgets(expireTime uint64, from int, qty int) ([]Widget,error) {
+	var widgets []Widget
+
+	_, err := this.orm.Select(&widgets, "select * from " + tableName + " where NextCheck < :now order by WidgetID limit :from,:qty ",
+		map[string]interface{} { "now": expireTime, "from": from, "qty": qty })
+
+	return widgets, err
+}
+
 func (this DatabaseSource) NewWidget(apiHeader string, apiKey string, apiPath string, cacheElapse uint32) (Widget,error) {
 	p1 := newWidget(apiHeader, uid.NewUid(apiHeader + apiKey + apiPath), apiKey, apiPath, cacheElapse)
 	// _ = "breakpoint"
@@ -113,6 +125,11 @@ func (this DatabaseSource) DeleteWidget(wObj Widget) (bool,error) {
 	return p1==1, err
 }
 
+func (this DatabaseSource) ExpiredWidgetCount(expireTime uint64) (int64,error) {
+	return this.orm.SelectInt("select count(*) from " + tableName + " where NextCheck < :now",
+		map[string]interface{} { "now": expireTime })
+}
+
 func mapTable(dbSource DatabaseSource) {
     // Had issue with inline mapping
 
@@ -128,8 +145,13 @@ func mapTable(dbSource DatabaseSource) {
 }
 
 func createDb(dbSource DatabaseSource, dbType DbType) bool {
+	tableMutex.Lock()
+	defer tableMutex.Unlock()
+
+	// Create tables
     err := dbSource.orm.CreateTablesIfNotExists()
 
+	// Create indexes
     if (err == nil) {
         if (dbType == Local) {
             dbSource.orm.Db.Exec("CREATE INDEX IF NOT EXISTS nextcheckindex ON " + tableName + "(NextCheck)")

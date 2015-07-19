@@ -15,18 +15,30 @@ import (
 
 	//
 	"github.com/parnurzeal/gorequest"
+	"math"
 )
 
 var _ = log.Flags()
 
+const (
+	bufferChanSize int = 50
+)
+
 
 // Channels
-var requestChan chan string
-var killChan chan int
+var (
+	requestChan chan string
+	killChan chan int
+	currentWorkers int = 0
+)
 
 // Cache & Db
-var cacheIstance cache.CacheGeneric = nil
-var dbIstance db.DataSource = nil
+var (
+	cacheIstance cache.CacheGeneric = nil
+	dbIstance db.DataSource = nil
+)
+
+/* ===================================================================== */
 
 func doRefresh(wId string) {
 	p1, err := dbIstance.GetWidget(wId)
@@ -68,18 +80,62 @@ func concurrentRefresh(id int, work *sync.WaitGroup) {
 	}
 }
 
-/* ===================================================================== */
-/* ===================================================================== */
-/* ===================================================================== */
-/* ===================================================================== */
+func howManyToRefresh(nowTime uint64) int64 {
+	count,err := dbIstance.ExpiredWidgetCount(nowTime)
 
-func addCacheRefresher(id int, wg *sync.WaitGroup) {
-	wg.Add(id)
-	for i := 0; i < id; i++ {
-		go concurrentRefresh(i, wg)
+	if (err != nil) {
+		return 0;
+	}
+
+	return count;
+}
+
+func refreshWidgets() {
+	nowTime := uint64( time.Now().Unix() )
+
+	countWidgets := howManyToRefresh(nowTime);
+
+	if (countWidgets <= 0) {
+		return
+	}
+
+	workerRefreshQty := math.Ceil((float64)(countWidgets) / (float64)(bufferChanSize))
+
+	for i := 0; i < (int)(workerRefreshQty); i++ {
+		go func(timeExp uint64, start int, qty int) {
+			widgets, err := dbIstance.GetWidgets(timeExp, start, qty)
+			if err == nil && len(widgets) != 0 {
+				for j := 0; j < len(widgets); j++ {
+					requestChan <- widgets[i].WidgetID
+				}
+			}
+		} (nowTime, i * bufferChanSize, bufferChanSize)
 	}
 }
 
+/* ===================================================================== */
+/* ===================================================================== */
+/* ===================================================================== */
+/* ===================================================================== */
+
+func addCacheRefresher(count int, wg *sync.WaitGroup) {
+	wg.Add(count)
+	for i := 0; i < count; i++ {
+		go concurrentRefresh(i, wg)
+	}
+
+	// This to see currently active
+	currentWorkers = currentWorkers + count
+}
+
+func removeCacheRefresher(count int, wg *sync.WaitGroup) {
+	for i := 0; i < count; i++ {
+		killChan <- i
+	}
+
+	// This to see currently active
+	currentWorkers = currentWorkers - count
+}
 
 func initCache() {
 	cacheIstance = cache.GetCacheClient(cache.Local, nil)
@@ -93,24 +149,28 @@ func initRefresh() {
 	var wg sync.WaitGroup
 
 	// Decide some buffer
-	requestChan = make(chan string, 50)
-	killChan = make(chan int, 50)
+	requestChan = make(chan string, bufferChanSize)
+	killChan = make(chan int, bufferChanSize)
 
 	// A go routine here that fetch the data and send to chan
 	// =========
 
-
-	maximumWorker := 50
-	addCacheRefresher(maximumWorker, &wg)
+	addCacheRefresher(bufferChanSize, &wg)
 
 	// A go routine that increase the number if necessary here
 	// =========
 
-	wg.Wait()
 
-	// Kill
-	close(requestChan)
-	close(killChan)
+	// Non blocking wait
+	go func () {
+		wg.Wait()
+
+		log.Print("WaitGroup ended, remaining go routines: %d", currentWorkers)
+
+		// Kill
+		close(requestChan)
+		close(killChan)
+	} ()
 }
 
 func Main() {
