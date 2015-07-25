@@ -2,10 +2,12 @@ package db
 
 import(
     "log"
+    "errors"
     "os"
     "time"
     "sync"
     "database/sql"
+
 	"github.com/furio/widserve/db/uid"
 
 	"gopkg.in/gorp.v1"
@@ -27,6 +29,7 @@ type DataSource interface {
 	DeleteWidget(wObj Widget) (bool,error)
 	DeleteWidgetByKey(id string) (bool,error)
 	ExpiredWidgetCount(expireTime uint64) (int64,error)
+    MinimumWidgetElapseMinutes() (int64,error)
 }
 
 type DatabaseSource struct {
@@ -88,6 +91,10 @@ func (this DatabaseSource) GetWidgets(expireTime uint64, from int, qty int) ([]W
 }
 
 func (this DatabaseSource) NewWidget(apiHeader string, apiKey string, apiPath string, cacheElapse uint32) (Widget,error) {
+    if (cacheElapse < 1) {
+        return nil, errors.New("cacheElapse < 1")
+    }
+
 	p1 := newWidget(apiHeader, uid.NewUid(apiHeader + apiKey + apiPath), apiKey, apiPath, cacheElapse)
 	// _ = "breakpoint"
 	err := this.orm.Insert(&p1)
@@ -128,6 +135,10 @@ func (this DatabaseSource) DeleteWidget(wObj Widget) (bool,error) {
 func (this DatabaseSource) ExpiredWidgetCount(expireTime uint64) (int64,error) {
 	return this.orm.SelectInt("select count(*) from " + tableName + " where NextCheck < :now",
 		map[string]interface{} { "now": expireTime })
+}
+
+func (this DatabaseSource) MinimumWidgetElapseMinutes() (int64,error) {
+    return this.orm.SelectInt("select min(CacheElapse) from " + tableName)
 }
 
 func mapTable(dbSource DatabaseSource) {

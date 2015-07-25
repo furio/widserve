@@ -27,9 +27,17 @@ const (
 
 // Channels
 var (
-	requestChan chan string
-	killChan chan int
+	refreshRequestChan chan string
+	refreshKillChan chan int
+
+	serviceVariationChan chan int
+	serviceKillChan chan int
+
 	currentWorkers int = 0
+
+
+	tickStuff time.Ticker
+	wg sync.WaitGroup
 )
 
 // Cache & Db
@@ -66,15 +74,15 @@ func doRefresh(wId string) {
 	cacheIstance.Set(wId, body, time.Duration(p1.CacheElapse) * time.Second)
 }
 
-func concurrentRefresh(id int, work *sync.WaitGroup) {
+func concurrentRefresh(work *sync.WaitGroup) {
 	defer work.Done()
 	doWork := true
 
 	for doWork {
 		select {
-			case msg := <-requestChan:
+			case msg := <-refreshRequestChan:
 				doRefresh(msg)
-			case _ = <-killChan:
+			case _ = <-refreshKillChan:
 				doWork = false
 		}
 	}
@@ -106,10 +114,34 @@ func refreshWidgets() {
 			widgets, err := dbIstance.GetWidgets(timeExp, start, qty)
 			if err == nil && len(widgets) != 0 {
 				for j := 0; j < len(widgets); j++ {
-					requestChan <- widgets[i].WidgetID
+					refreshRequestChan <- widgets[i].WidgetID
 				}
 			}
 		} (nowTime, i * bufferChanSize, bufferChanSize)
+	}
+}
+
+func tickerChecker(secToRefresh int) {
+	doWork := true
+	secondToRefresh := secToRefresh;
+	nextRefresh := secondToRefresh;
+
+	for doWork {
+		select {
+			case _ <- tickStuff.C:
+				{
+					nextRefresh -= 1
+					if (nextRefresh == 0) {
+						refreshWidgets()
+					}
+				}
+
+			case newRefresh := <- serviceVariationChan:
+				secondToRefresh = newRefresh
+
+			case _ <- serviceKillChan:
+				doWork = false
+		}
 	}
 }
 
@@ -121,7 +153,7 @@ func refreshWidgets() {
 func addCacheRefresher(count int, wg *sync.WaitGroup) {
 	wg.Add(count)
 	for i := 0; i < count; i++ {
-		go concurrentRefresh(i, wg)
+		go concurrentRefresh(wg)
 	}
 
 	// This to see currently active
@@ -130,7 +162,7 @@ func addCacheRefresher(count int, wg *sync.WaitGroup) {
 
 func removeCacheRefresher(count int, wg *sync.WaitGroup) {
 	for i := 0; i < count; i++ {
-		killChan <- i
+		refreshKillChan <- 0
 	}
 
 	// This to see currently active
@@ -146,19 +178,25 @@ func initDb() {
 }
 
 func initRefresh() {
-	var wg sync.WaitGroup
-
 	// Decide some buffer
-	requestChan = make(chan string, bufferChanSize)
-	killChan = make(chan int, bufferChanSize)
+	refreshRequestChan = make(chan string, bufferChanSize)
+	refreshKillChan = make(chan int, bufferChanSize)
+	serviceVariationChan = make(chan int)
+	serviceKillChan = make(chan int, bufferChanSize)
+
+	tickStuff = time.NewTicker(time.Second)
+
 
 	// A go routine here that fetch the data and send to chan
 	// =========
+	minutes,errMinutes := dbIstance.MinimumWidgetElapseMinutes()
+	if (errMinutes != nil) {
+		minutes = 1
+	}
+	go tickerChecker((int64)(minutes * 60))
+
 
 	addCacheRefresher(bufferChanSize, &wg)
-
-	// A go routine that increase the number if necessary here
-	// =========
 
 
 	// Non blocking wait
@@ -168,8 +206,8 @@ func initRefresh() {
 		log.Print("WaitGroup ended, remaining go routines: %d", currentWorkers)
 
 		// Kill
-		close(requestChan)
-		close(killChan)
+		close(refreshRequestChan)
+		close(refreshKillChan)
 	} ()
 }
 
